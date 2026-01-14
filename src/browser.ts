@@ -186,8 +186,9 @@ export function getLastSnapshot(): string | null {
  */
 export async function getSnapshot(page: Page): Promise<string> {
   // Use Playwright's internal _snapshotForAI method
-  const snapshot = await (page as any)._snapshotForAI();
-  return snapshot;
+  // Returns { full: string, incremental: string }
+  const result = await (page as any)._snapshotForAI();
+  return result.full;
 }
 
 /**
