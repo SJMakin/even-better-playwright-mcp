@@ -1,0 +1,24 @@
+{
+  "name": "even-better-playwright-mcp",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "dist/src/index.js",
+  "bin": {
+    "even-better-playwright-mcp": "./dist/bin/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "start": "node dist/bin/cli.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "playwright": "^1.40.0",
+    "zod": "^3.22.0",
+    "zod-to-json-schema": "^3.22.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  }
+}
