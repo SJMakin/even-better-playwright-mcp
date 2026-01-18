@@ -39,7 +39,7 @@ const STATIC_RESOURCE_TYPES = new Set([
   'other'
 ]);
 
-class NetworkCapture {
+export class NetworkCapture {
   private requests: Map<string, NetworkRequest> = new Map();
   private page: Page | null = null;
   private options: Required<NetworkCaptureOptions> = {
@@ -237,8 +237,3 @@ class NetworkCapture {
     return summary;
   }
 }
-
-// Singleton instance
-const networkCapture = new NetworkCapture();
-
-export default networkCapture;

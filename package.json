@@ -9,7 +9,9 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
-    "start": "node dist/bin/cli.js"
+    "start": "node dist/bin/cli.js",
+    "test": "node --test test/**/*.test.js",
+    "test:e2e": "node --test test/e2e.test.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",

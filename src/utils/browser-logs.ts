@@ -7,9 +7,6 @@ import type { Page, ConsoleMessage } from 'playwright';
 
 const MAX_LOGS_PER_PAGE = 5000;
 
-// Store logs per page using page._guid as identifier
-const browserLogs: Map<string, string[]> = new Map();
-
 /**
  * Get unique identifier for a page
  */
@@ -29,7 +26,7 @@ function isRegExp(value: any): value is RegExp {
  * Set up console listener for a page
  * Captures all console output and stores it persistently
  */
-export function setupPageConsoleListener(page: Page): void {
+export function setupPageConsoleListener(page: Page, browserLogs: Map<string, string[]>): void {
   const targetId = (page as any)._guid as string | undefined;
 
   if (!targetId) {
@@ -74,13 +71,14 @@ export interface GetLatestLogsOptions {
   page?: Page;
   count?: number;
   search?: string | RegExp;
+  browserLogs: Map<string, string[]>;
 }
 
 /**
  * Get latest browser console logs with optional filtering
  */
-export async function getLatestLogs(options?: GetLatestLogsOptions): Promise<string[]> {
-  const { page, count, search } = options || {};
+export async function getLatestLogs(options: GetLatestLogsOptions): Promise<string[]> {
+  const { page, count, search, browserLogs } = options;
 
   let allLogs: string[] = [];
 
@@ -148,7 +146,7 @@ export async function getLatestLogs(options?: GetLatestLogsOptions): Promise<str
 /**
  * Clear all stored browser logs
  */
-export function clearAllLogs(): void {
+export function clearAllLogs(browserLogs: Map<string, string[]>): void {
   browserLogs.clear();
 }
 

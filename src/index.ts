@@ -12,22 +12,34 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 
-import { snapshotTool, snapshotSchema, handleSnapshot } from './tools/snapshot.js';
-import { screenshotTool, screenshotSchema, handleScreenshot } from './tools/screenshot.js';
-import { executeTool, executeSchema, handleExecute } from './tools/execute.js';
-import { searchTool, searchSchema, handleSearch } from './tools/search.js';
-import { networkRequestsTool, getNetworkRequests } from './tools/network.js';
-import { closeBrowser, setBrowserConfig, BrowserConfig } from './browser.js';
+import { snapshotTool, snapshotSchema, createSnapshotHandler } from './tools/snapshot.js';
+import { screenshotTool, screenshotSchema, createScreenshotHandler } from './tools/screenshot.js';
+import { executeTool, executeSchema, createExecuteHandler } from './tools/execute.js';
+import { searchTool, searchSchema, createSearchHandler } from './tools/search.js';
+import { networkRequestsTool, createNetworkHandler } from './tools/network.js';
+import { BrowserManager, BrowserConfig } from './browser.js';
 
+export { BrowserManager };
 export type { BrowserConfig };
 
 const SERVER_NAME = 'even-better-playwright-mcp';
 const SERVER_VERSION = '0.1.0';
 
 /**
- * Create and configure the MCP server
+ * Interface for server instance
  */
-function createServer(): Server {
+export interface PlaywrightMcpServer {
+  server: Server;
+  browserManager: BrowserManager;
+  cleanup: () => Promise<void>;
+}
+
+/**
+ * Create and configure the MCP server with a BrowserManager instance
+ */
+export function createServerInstance(config?: BrowserConfig): PlaywrightMcpServer {
+  const browserManager = new BrowserManager(config);
+
   const server = new Server(
     { name: SERVER_NAME, version: SERVER_VERSION },
     {
@@ -36,6 +48,13 @@ function createServer(): Server {
       },
     }
   );
+
+  // Create tool handlers with injected browser manager
+  const handleSnapshot = createSnapshotHandler(browserManager);
+  const handleScreenshot = createScreenshotHandler(browserManager);
+  const handleExecute = createExecuteHandler(browserManager);
+  const handleSearch = createSearchHandler(browserManager);
+  const handleNetworkRequests = createNetworkHandler(browserManager);
 
   // List available tools
   server.setRequestHandler(ListToolsRequestSchema, async () => {
@@ -94,7 +113,7 @@ function createServer(): Server {
           return await handleSearch(parsed);
         }
         case 'browser_network_requests': {
-          return await getNetworkRequests(args as any || {});
+          return await handleNetworkRequests(args as any || {});
         }
         default:
           return {
@@ -111,32 +130,36 @@ function createServer(): Server {
     }
   });
 
-  return server;
+  return {
+    server,
+    browserManager,
+    cleanup: async () => {
+      await browserManager.close();
+    },
+  };
 }
 
 /**
  * Start the MCP server with optional configuration
  */
 export async function startServer(config: BrowserConfig = {}): Promise<void> {
-  // Apply browser configuration
-  setBrowserConfig(config);
-  
-  const server = createServer();
+  const { server, cleanup } = createServerInstance(config);
+
   const transport = new StdioServerTransport();
 
   // Handle cleanup on exit
   process.on('SIGINT', async () => {
-    await closeBrowser();
+    await cleanup();
     process.exit(0);
   });
 
   process.on('SIGTERM', async () => {
-    await closeBrowser();
+    await cleanup();
     process.exit(0);
   });
 
   await server.connect(transport);
-  
+
   const browserInfo = config.browser ?? 'chromium';
   const modeInfo = config.headless ? 'headless' : 'headed';
   console.error(`${SERVER_NAME} v${SERVER_VERSION} started (${browserInfo}, ${modeInfo})`);
@@ -150,3 +173,12 @@ if (isMainModule || process.argv[1]?.includes('index')) {
     process.exit(1);
   });
 }
+
+// Export tool factories and schemas for library consumers
+export {
+  createSnapshotHandler,
+  createScreenshotHandler,
+  createExecuteHandler,
+  createSearchHandler,
+  createNetworkHandler,
+};

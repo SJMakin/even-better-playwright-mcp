@@ -3,60 +3,12 @@
  * Returns captured network traffic
  */
 
-import { getPage } from '../browser.js';
-import networkCapture from '../utils/network-capture.js';
+import { BrowserManager } from '../browser.js';
 
 export interface NetworkRequestsParams {
   includeStatic?: boolean; // Include static resources (images, CSS, fonts)
   limit?: number;          // Max number of requests to return
   clear?: boolean;         // Clear captured requests after returning
-}
-
-/**
- * Get captured network requests
- */
-export async function getNetworkRequests(
-  params: NetworkRequestsParams = {}
-): Promise<{ content: Array<{ type: 'text'; text: string }> }> {
-  try {
-    const page = await getPage();
-
-    // Start capturing if not already started
-    networkCapture.start(page, {
-      includeStatic: params.includeStatic ?? false,
-      captureResponseBody: true,
-      maxBodySize: 50 * 1024,
-    });
-
-    // Get summary of captured requests
-    const summary = networkCapture.getSummary({
-      includeStatic: params.includeStatic,
-      limit: params.limit ?? 50,
-    });
-
-    // Clear if requested
-    if (params.clear) {
-      networkCapture.clear();
-    }
-
-    return {
-      content: [
-        {
-          type: 'text',
-          text: summary,
-        },
-      ],
-    };
-  } catch (error: any) {
-    return {
-      content: [
-        {
-          type: 'text',
-          text: `Error capturing network requests: ${error.message}`,
-        },
-      ],
-    };
-  }
 }
 
 /**
@@ -86,3 +38,50 @@ export const networkRequestsTool = {
     },
   },
 };
+
+export function createNetworkHandler(browserManager: BrowserManager) {
+  return async function getNetworkRequests(
+    params: NetworkRequestsParams = {}
+  ): Promise<{ content: Array<{ type: 'text'; text: string }> }> {
+    try {
+      const page = await browserManager.getPage();
+      const networkCapture = browserManager.getNetworkCapture();
+
+      // Start capturing if not already started
+      networkCapture.start(page, {
+        includeStatic: params.includeStatic ?? false,
+        captureResponseBody: true,
+        maxBodySize: 50 * 1024,
+      });
+
+      // Get summary of captured requests
+      const summary = networkCapture.getSummary({
+        includeStatic: params.includeStatic,
+        limit: params.limit ?? 50,
+      });
+
+      // Clear if requested
+      if (params.clear) {
+        networkCapture.clear();
+      }
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: summary,
+          },
+        ],
+      };
+    } catch (error: any) {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `Error capturing network requests: ${error.message}`,
+          },
+        ],
+      };
+    }
+  };
+}

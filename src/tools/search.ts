@@ -3,7 +3,7 @@
  */
 
 import { z } from 'zod';
-import { getLastSnapshot } from '../browser.js';
+import { BrowserManager } from '../browser.js';
 import { searchSnapshot } from '../utils/search.js';
 
 export const searchSchema = z.object({
@@ -31,30 +31,32 @@ export const searchTool = {
   inputSchema: searchSchema,
 };
 
-export async function handleSearch(params: z.infer<typeof searchSchema>): Promise<{ content: Array<{ type: 'text'; text: string }> }> {
-  const { pattern, ignoreCase = false, lineLimit = 100 } = params;
-  
-  const snapshot = getLastSnapshot();
-  
-  if (!snapshot) {
+export function createSearchHandler(browserManager: BrowserManager) {
+  return async function handleSearch(params: z.infer<typeof searchSchema>): Promise<{ content: Array<{ type: 'text'; text: string }> }> {
+    const { pattern, ignoreCase = false, lineLimit = 100 } = params;
+
+    const snapshot = browserManager.getLastSnapshot();
+
+    if (!snapshot) {
+      return {
+        content: [{ type: 'text', text: 'No snapshot available. Run the snapshot tool first to capture the page.' }],
+      };
+    }
+
+    const result = searchSnapshot(snapshot, { pattern, ignoreCase, lineLimit });
+
+    if (result.matchCount === 0) {
+      return {
+        content: [{ type: 'text', text: `No matches found for pattern: ${pattern}` }],
+      };
+    }
+
+    const header = result.truncated
+      ? `Found ${result.matchCount} matches (showing first ${lineLimit}):`
+      : `Found ${result.matchCount} matches:`;
+
     return {
-      content: [{ type: 'text', text: 'No snapshot available. Run the snapshot tool first to capture the page.' }],
+      content: [{ type: 'text', text: `${header}\n\n${result.result}` }],
     };
-  }
-  
-  const result = searchSnapshot(snapshot, { pattern, ignoreCase, lineLimit });
-  
-  if (result.matchCount === 0) {
-    return {
-      content: [{ type: 'text', text: `No matches found for pattern: ${pattern}` }],
-    };
-  }
-  
-  const header = result.truncated
-    ? `Found ${result.matchCount} matches (showing first ${lineLimit}):`
-    : `Found ${result.matchCount} matches:`;
-  
-  return {
-    content: [{ type: 'text', text: `${header}\n\n${result.result}` }],
   };
 }

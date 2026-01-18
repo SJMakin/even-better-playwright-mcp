@@ -397,6 +397,63 @@ The execute tool provides contextual hints:
 - **Hidden element**: "Element may be hidden or covered by another element. Try scrolling or closing overlays."
 - **Connection lost**: "Browser connection lost. The browser may have been closed - try again to relaunch."
 
+## Programmatic Usage
+
+The server can be used as a library with full programmatic control:
+
+```typescript
+import { createServerInstance, BrowserManager } from 'even-better-playwright-mcp';
+
+// Create server instance with custom config
+const { server, browserManager, cleanup } = createServerInstance({
+  browser: 'chromium',
+  headless: true,
+  isolated: true,  // Force ephemeral context
+  launchOptions: {
+    slowMo: 50,
+    args: ['--disable-blink-features=AutomationControlled']
+  },
+  contextOptions: {
+    viewport: { width: 1920, height: 1080 },
+    userAgent: 'Custom User Agent'
+  }
+});
+
+// Connect your transport
+await server.connect(transport);
+
+// Cleanup when done
+await cleanup();
+```
+
+### BrowserConfig Options
+
+- `browser` - Browser type: 'chromium', 'firefox', 'webkit'
+- `headless` - Run in headless mode
+- `cdpEndpoint` - Connect to existing browser via CDP
+- `userDataDir` - Persistent browser profile directory
+- `isolated` - Force ephemeral context (overrides userDataDir)
+- `launchOptions` - Pass-through to Playwright's browser.launch()
+- `contextOptions` - Pass-through to browser.newContext()
+
+### Multi-Session Support
+
+Each `BrowserManager` instance has isolated state:
+- Independent browser/context/page
+- Separate network capture
+- Isolated console logs
+- Per-instance persistent state
+
+```typescript
+// Create multiple isolated sessions
+const session1 = createServerInstance({ browser: 'chromium' });
+const session2 = createServerInstance({ browser: 'firefox' });
+
+// Each has its own browser and state
+await session1.browserManager.getPage();
+await session2.browserManager.getPage();
+```
+
 ## Development
 
 ### Building from Source
@@ -408,6 +465,33 @@ npm install
 npm run build
 ```
 
+### Running Tests
+
+The project includes comprehensive end-to-end tests:
+
+```bash
+# Build first
+npm run build
+
+# Run e2e tests
+npm run test:e2e
+
+# Run all tests
+npm test
+```
+
+**Test Coverage**: 15 tests covering all MCP tools against Hacker News
+- Tool discovery and validation
+- Browser automation (navigate, click, fill forms)
+- Accessibility snapshots with ref system
+- Screenshot capture
+- Network request monitoring
+- Persistent state management
+- Error and timeout handling
+- Full end-to-end workflows
+
+See `test/README.md` for detailed test documentation.
+
 ### Project Structure
 
 ```
@@ -415,8 +499,8 @@ even-better-playwright-mcp/
 ├── bin/
 │   └── cli.ts                  # CLI entry point with arg parsing
 ├── src/
-│   ├── index.ts                # MCP server setup
-│   ├── browser.ts              # Browser/context management
+│   ├── index.ts                # MCP server factory (createServerInstance)
+│   ├── browser.ts              # BrowserManager class (refactored!)
 │   ├── vm-context.ts           # VM sandbox setup
 │   ├── tools/
 │   │   ├── snapshot.ts         # Snapshot tool (compressed + search + diff)
@@ -444,9 +528,41 @@ even-better-playwright-mcp/
 │   │   └── react-source.ts     # React locations
 │   └── visual/
 │       └── aria-labels.ts      # Vimium-style overlays
+├── test/
+│   ├── e2e.test.js            # Comprehensive E2E test suite
+│   └── README.md              # Test documentation
 ├── package.json
 ├── tsconfig.json
 └── README.md
+```
+
+### Recent Refactoring (v0.1.0)
+
+The codebase was refactored from global module-level state to a clean, testable architecture:
+
+**Before**: Global functions and singletons
+```typescript
+import { getPage, getContext } from './browser.js';
+const page = await getPage(); // Global state
+```
+
+**After**: Dependency injection with BrowserManager
+```typescript
+const browserManager = new BrowserManager(config);
+const page = await browserManager.getPage(); // Instance state
+```
+
+**Benefits**:
+- ✅ Multi-session support (multiple isolated browsers)
+- ✅ Better testability (no global state)
+- ✅ Library-friendly API (clean exports)
+- ✅ Full Playwright configuration control
+- ✅ Flexible browser lifecycle management
+
+All tool handlers now use factory functions with dependency injection:
+```typescript
+const handleSnapshot = createSnapshotHandler(browserManager);
+const handleExecute = createExecuteHandler(browserManager);
 ```
 
 ## Acknowledgments

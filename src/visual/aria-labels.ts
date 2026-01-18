@@ -6,7 +6,7 @@
  */
 
 import type { Page, ElementHandle } from 'playwright';
-import { getSnapshot } from '../browser.js';
+import { getAccessibilitySnapshot } from '../browser.js';
 
 export interface LabelOptions {
   interactiveOnly?: boolean;  // default: true - only show labels for interactive roles
@@ -205,7 +205,7 @@ export async function showAriaRefLabels({
   labelCount: number;
 }> {
   // Get accessibility snapshot
-  const snapshot = await getSnapshot(page);
+  const snapshot = await getAccessibilitySnapshot(page);
   
   // Discover refs and their element handles
   const { refHandles, refToElement } = await discoverRefs(page);

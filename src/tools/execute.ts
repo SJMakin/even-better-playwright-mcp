@@ -4,7 +4,7 @@
  */
 
 import { z } from 'zod';
-import { getPage, getContext, getUserState } from '../browser.js';
+import { BrowserManager } from '../browser.js';
 import { executeInVM, formatVMResult, CodeExecutionTimeoutError } from '../vm-context.js';
 
 export const executeSchema = z.object({
@@ -44,70 +44,72 @@ export const executeTool = {
 
 const MAX_RESPONSE_LENGTH = 6000;
 
-export async function handleExecute(params: z.infer<typeof executeSchema>): Promise<{
-  content: Array<{ type: 'text'; text: string }>;
-  isError?: boolean;
-}> {
-  const { code, timeout } = params;
+export function createExecuteHandler(browserManager: BrowserManager) {
+  return async function handleExecute(params: z.infer<typeof executeSchema>): Promise<{
+    content: Array<{ type: 'text'; text: string }>;
+    isError?: boolean;
+  }> {
+    const { code, timeout } = params;
 
-  try {
-    const page = await getPage();
-    const context = getContext();
+    try {
+      const page = await browserManager.getPage();
+      const context = await browserManager.getContext();
 
-    if (!context) {
-      throw new Error('Browser context not available');
-    }
+      if (!context) {
+        throw new Error('Browser context not available');
+      }
 
-    const result = await executeInVM(code, {
-      page,
-      context,
-      state: getUserState(),
-      timeout,
-    });
+      const result = await executeInVM(code, {
+        page,
+        context,
+        browserManager,
+        timeout,
+      });
 
-    // Format result
-    let responseText = formatVMResult(result);
+      // Format result
+      let responseText = formatVMResult(result);
 
-    // Truncate if too long
-    if (responseText.length > MAX_RESPONSE_LENGTH) {
-      responseText = responseText.slice(0, MAX_RESPONSE_LENGTH) +
-        `\n\n[Truncated to ${MAX_RESPONSE_LENGTH} chars. Use pagination or filter results.]`;
-    }
+      // Truncate if too long
+      if (responseText.length > MAX_RESPONSE_LENGTH) {
+        responseText = responseText.slice(0, MAX_RESPONSE_LENGTH) +
+          `\n\n[Truncated to ${MAX_RESPONSE_LENGTH} chars. Use pagination or filter results.]`;
+      }
 
-    return {
-      content: [{ type: 'text', text: responseText.trim() }],
-      isError: !!result.error,
-    };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    
-    // Provide contextual hints based on error type
-    let hint = '';
-    
-    // Stale ref handling - refs become invalid after navigation
-    if (message.includes('ref') && message.includes('not found')) {
-      hint = '\n\n[HINT: Page may have navigated. Refs are stale after navigation. Call snapshot tool to get fresh refs.]';
-    }
-    // Timeout handling
-    else if (message.includes('timeout') || message.includes('Timeout') || error instanceof CodeExecutionTimeoutError) {
-      hint = '\n\n[HINT: Operation timed out. Try increasing timeout or check if element exists/is visible.]';
-    }
-    // Element not visible/clickable
-    else if (message.includes('intercept') || message.includes('not visible') || message.includes('hidden')) {
-      hint = '\n\n[HINT: Element may be hidden or covered by another element. Try scrolling or closing overlays.]';
-    }
-    // Connection errors
-    else if (message.includes('Target closed') || message.includes('connection') || message.includes('Protocol')) {
-      hint = '\n\n[HINT: Browser connection lost. The browser may have been closed - try again to relaunch.]';
-    }
-    // Navigation errors
-    else if (message.includes('net::') || message.includes('ERR_')) {
-      hint = '\n\n[HINT: Network error during navigation. Check the URL and network connectivity.]';
-    }
+      return {
+        content: [{ type: 'text', text: responseText.trim() }],
+        isError: !!result.error,
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
 
-    return {
-      content: [{ type: 'text', text: `Error executing code: ${message}${hint}` }],
-      isError: true,
-    };
-  }
+      // Provide contextual hints based on error type
+      let hint = '';
+
+      // Stale ref handling - refs become invalid after navigation
+      if (message.includes('ref') && message.includes('not found')) {
+        hint = '\n\n[HINT: Page may have navigated. Refs are stale after navigation. Call snapshot tool to get fresh refs.]';
+      }
+      // Timeout handling
+      else if (message.includes('timeout') || message.includes('Timeout') || error instanceof CodeExecutionTimeoutError) {
+        hint = '\n\n[HINT: Operation timed out. Try increasing timeout or check if element exists/is visible.]';
+      }
+      // Element not visible/clickable
+      else if (message.includes('intercept') || message.includes('not visible') || message.includes('hidden')) {
+        hint = '\n\n[HINT: Element may be hidden or covered by another element. Try scrolling or closing overlays.]';
+      }
+      // Connection errors
+      else if (message.includes('Target closed') || message.includes('connection') || message.includes('Protocol')) {
+        hint = '\n\n[HINT: Browser connection lost. The browser may have been closed - try again to relaunch.]';
+      }
+      // Navigation errors
+      else if (message.includes('net::') || message.includes('ERR_')) {
+        hint = '\n\n[HINT: Network error during navigation. Check the URL and network connectivity.]';
+      }
+
+      return {
+        content: [{ type: 'text', text: `Error executing code: ${message}${hint}` }],
+        isError: true,
+      };
+    }
+  };
 }

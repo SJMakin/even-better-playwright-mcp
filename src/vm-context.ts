@@ -9,7 +9,7 @@ import { createRequire } from 'node:module';
 import type { Page, BrowserContext } from 'playwright';
 import { createScopedFS, ScopedFS } from './utils/scoped-fs.js';
 import { createCapturedConsole, formatConsoleLogs, type ConsoleLogs } from './utils/console-capture.js';
-import { getSnapshot } from './browser.js';
+import { BrowserManager } from './browser.js';
 
 // DevTools imports (Phase 4)
 import {
@@ -128,7 +128,7 @@ const sandboxedRequire = createSandboxedRequire(require);
 export interface VMContextOptions {
   page: Page;
   context: BrowserContext;
-  state: Record<string, unknown>;
+  browserManager: BrowserManager;
   timeout?: number;
 }
 
@@ -169,15 +169,18 @@ export async function executeInVM(
   code: string,
   options: VMContextOptions
 ): Promise<VMExecutionResult> {
-  const { page, context, state, timeout = 30000 } = options;
+  const { page, context, browserManager, timeout = 30000 } = options;
   const { console: customConsole, logs } = createCapturedConsole();
-  
+
+  // Get state from browser manager
+  const state = browserManager.getUserState();
+
   // Track last snapshot for ref validation
   const lastSnapshotRef = { value: null as string | null };
-  
+
   // Helper to get accessibility snapshot
   const accessibilitySnapshot = async (): Promise<string> => {
-    const snapshot = await getSnapshot(page);
+    const snapshot = await browserManager.getSnapshot(page);
     lastSnapshotRef.value = snapshot;
     return snapshot;
   };
@@ -213,9 +216,9 @@ export async function executeInVM(
       waitForPageLoad({ page, ...options }),
 
     // Browser Console Logs - Persistent logging across executions
-    getLatestLogs: (options?: Omit<Parameters<typeof getLatestLogs>[0], 'page'>) =>
-      getLatestLogs({ page, ...options }),
-    clearAllLogs,
+    getLatestLogs: (options?: Omit<Parameters<typeof getLatestLogs>[0], 'page' | 'browserLogs'>) =>
+      getLatestLogs({ page, browserLogs: browserManager.getBrowserLogs(), ...options }),
+    clearAllLogs: () => clearAllLogs(browserManager.getBrowserLogs()),
 
     // HTML Utilities
     getCleanHTML: (options: Omit<GetCleanHTMLOptions, 'locator'> & { locator?: any }) =>
