@@ -3,6 +3,7 @@
  */
 
 import { chromium, firefox, webkit, Browser, BrowserContext, Page } from 'playwright';
+import { setupPageConsoleListener } from './utils/browser-logs.js';
 
 /**
  * Browser configuration options
@@ -78,6 +79,12 @@ export async function launchBrowser(): Promise<Page> {
     });
     const pages = state.context.pages();
     state.page = pages[0] || await state.context.newPage();
+
+    // Set up console listener for existing pages
+    pages.forEach(setupPageConsoleListener);
+
+    // Set up console listener for future pages
+    state.context.on('page', setupPageConsoleListener);
   } else {
     // Launch new browser
     const launchOptions: Parameters<typeof browserType.launchPersistentContext>[1] = {
@@ -103,6 +110,12 @@ export async function launchBrowser(): Promise<Page> {
       });
       state.page = await state.context.newPage();
     }
+
+    // Set up console listener for the page
+    setupPageConsoleListener(state.page);
+
+    // Set up console listener for future pages
+    state.context.on('page', setupPageConsoleListener);
   }
   
   // Set reasonable timeouts

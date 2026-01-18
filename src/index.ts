@@ -16,6 +16,7 @@ import { snapshotTool, snapshotSchema, handleSnapshot } from './tools/snapshot.j
 import { screenshotTool, screenshotSchema, handleScreenshot } from './tools/screenshot.js';
 import { executeTool, executeSchema, handleExecute } from './tools/execute.js';
 import { searchTool, searchSchema, handleSearch } from './tools/search.js';
+import { networkRequestsTool, getNetworkRequests } from './tools/network.js';
 import { closeBrowser, setBrowserConfig, BrowserConfig } from './browser.js';
 
 export type { BrowserConfig };
@@ -60,6 +61,11 @@ function createServer(): Server {
           description: searchTool.description,
           inputSchema: zodToJsonSchema(searchSchema),
         },
+        {
+          name: networkRequestsTool.name,
+          description: networkRequestsTool.description,
+          inputSchema: networkRequestsTool.inputSchema,
+        },
       ],
     };
   });
@@ -86,6 +92,9 @@ function createServer(): Server {
         case 'browser_search_snapshot': {
           const parsed = searchSchema.parse(args || {});
           return await handleSearch(parsed);
+        }
+        case 'browser_network_requests': {
+          return await getNetworkRequests(args as any || {});
         }
         default:
           return {

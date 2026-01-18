@@ -28,6 +28,12 @@ import {
   screenshotWithAccessibilityLabels,
 } from './visual/index.js';
 
+// Utility imports
+import { waitForPageLoad, WaitForPageLoadOptions, WaitForPageLoadResult } from './utils/wait-for-page-load.js';
+import { getLatestLogs, clearAllLogs } from './utils/browser-logs.js';
+import { getCleanHTML, GetCleanHTMLOptions } from './utils/clean-html.js';
+import { getLocatorStringForElement } from './utils/locator-string.js';
+
 // Create require function for use in sandbox
 const require = createRequire(import.meta.url);
 
@@ -201,6 +207,20 @@ export async function executeInVM(
     hideAriaRefLabels: () => hideAriaRefLabels({ page }),
     screenshotWithAccessibilityLabels: (options?: { interactiveOnly?: boolean }) =>
       screenshotWithAccessibilityLabels({ page, ...options }),
+
+    // Utilities - Smart page load detection
+    waitForPageLoad: (options?: Omit<WaitForPageLoadOptions, 'page'>) =>
+      waitForPageLoad({ page, ...options }),
+
+    // Browser Console Logs - Persistent logging across executions
+    getLatestLogs: (options?: Omit<Parameters<typeof getLatestLogs>[0], 'page'>) =>
+      getLatestLogs({ page, ...options }),
+    clearAllLogs,
+
+    // HTML Utilities
+    getCleanHTML: (options: Omit<GetCleanHTMLOptions, 'locator'> & { locator?: any }) =>
+      getCleanHTML({ locator: options.locator || page, ...options }),
+    getLocatorStringForElement,
   };
 
   const vmContext = vm.createContext(vmContextObj);

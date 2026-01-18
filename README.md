@@ -7,9 +7,13 @@ The **best of all worlds** Playwright MCP server - combining intelligent DOM com
 - 🎭 **Full Playwright API** - Execute any Playwright code via the `execute` tool
 - 🏗️ **90%+ DOM Compression** - SimHash-based list folding and wrapper removal
 - 📍 **Ref-Based Elements** - Stable `[ref=e1]` identifiers with aria-ref selectors
-- 🔍 **Regex Search** - Find content in snapshots without re-fetching
+- 🔍 **Enhanced Search & Diff** - Search snapshots with regex, track changes with diff mode
 - 🎯 **Visual Labels** - Vimium-style overlays for screenshot-based interaction
 - 🔧 **Advanced DevTools** - Debugger, live editor, styles inspection, React source finding
+- 🌐 **Network Capture** - Request/response interception with analytics filtering
+- ⏱️ **Smart Page Load** - Intelligent wait that filters analytics and stuck requests
+- 📝 **Browser Console Logs** - Persistent per-page logging with search and filtering
+- 🧹 **Clean HTML** - Get LLM-friendly HTML with search and diff capabilities
 - 🔒 **Sandboxed Execution** - Safe VM with scoped file system and module allowlist
 
 ## Installation
@@ -81,6 +85,8 @@ Call again after navigation (refs become stale).
 
 **Options:**
 - `compress` (boolean, default: true) - Enable smart compression (~90% token reduction)
+- `search` (string | RegExp) - Search pattern to filter results with 5 lines of context
+- `showDiff` (boolean, default: false) - Show changes since last snapshot
 
 **Example output:**
 ```
@@ -105,6 +111,11 @@ Execute any Playwright code with full API access. This is the main tool for brow
 - `state` - Persistent object across calls
 - `$('e5')` - Shorthand for `page.locator('aria-ref=e5')`
 - `accessibilitySnapshot()` - Get current page snapshot
+- `waitForPageLoad()` - Smart page load detection (filters analytics/ads)
+- `getLatestLogs()` - Get browser console logs with search/filtering
+- `clearAllLogs()` - Clear all stored console logs
+- `getCleanHTML()` - Get cleaned HTML with search and diff
+- `getLocatorStringForElement()` - Generate selector string from element
 
 **Common patterns:**
 ```javascript
@@ -120,8 +131,9 @@ await $('e12').fill('search query')
 // Get text
 const text = await $('e3').textContent()
 
-// Wait for network
-await page.waitForLoadState('networkidle')
+// Wait for network (smart detection, filters analytics/ads)
+const result = await waitForPageLoad({ timeout: 30000 })
+// => { success: true, waitTimeMs: 1234, pendingRequests: [] }
 
 // Screenshot
 await page.screenshot({ path: 'screenshot.png' })
@@ -142,6 +154,47 @@ const styles = await getStylesForLocator({ locator: $('e5') })
 // Find React component source
 const source = await getReactSource({ locator: $('e5') })
 // => { fileName: 'Button.tsx', lineNumber: 42 }
+```
+
+**Browser Console Logs:**
+```javascript
+// Get latest 50 console logs from current page
+const logs = await getLatestLogs({ count: 50 })
+
+// Search logs with regex
+const errorLogs = await getLatestLogs({ search: /error|warning/i })
+
+// Get logs from all pages
+const allLogs = await getLatestLogs()
+
+// Clear all stored logs
+clearAllLogs()
+```
+
+**HTML Utilities:**
+```javascript
+// Get cleaned HTML from page or element
+const html = await getCleanHTML({
+  locator: page,  // or $('e5') for specific element
+  maxContentLen: 500
+})
+
+// Search within HTML
+const forms = await getCleanHTML({
+  locator: page,
+  search: 'form'
+})
+
+// Track HTML changes
+const diff = await getCleanHTML({
+  locator: page,
+  showDiffSinceLastCall: true
+})
+
+// Generate readable selector for element
+const button = $('e5')
+const selector = await getLocatorStringForElement(button)
+// => "page.getByRole('button', { name: 'Submit' })"
 ```
 
 **Safe modules via require():**
@@ -177,10 +230,37 @@ Search the last captured snapshot using regex patterns.
 **Example:**
 ```
 Pattern: "button|link"
-Result: 
+Result:
 - link "Contact Us" [ref=e15]
 - button "Submit" [ref=e23]
 - link "Privacy Policy" [ref=e31]
+```
+
+### 5. `browser_network_requests` - Capture Network Traffic
+
+Get captured network requests with automatic filtering of analytics and ads.
+
+**Options:**
+- `includeStatic` (boolean, default: false) - Include images, CSS, fonts
+- `limit` (number, default: 50) - Max requests to return (most recent)
+- `clear` (boolean, default: false) - Clear captured requests after returning
+
+**Features:**
+- Automatically starts capturing on first call
+- Filters analytics/tracking domains (Google Analytics, Facebook Pixel, etc.)
+- Captures request/response bodies (up to 50KB)
+- Shows status codes, timing, and response previews
+
+**Example:**
+```
+Network Requests (127 total, showing last 50):
+
+POST https://api.example.com/login [200] (245ms)
+  POST: {"email":"user@example.com","password":"***"}
+  RESPONSE: {"token":"eyJ...","user":{"id":123,"name":"John"}}
+
+GET https://api.example.com/profile [200] (89ms)
+  RESPONSE: {"id":123,"name":"John","email":"user@example.com"}
 ```
 
 ## Workflow
@@ -238,13 +318,26 @@ Result:
 │  ENHANCED SNAPSHOT                                              │
 │  ├── SimHash-based list folding (compress 48 items → 2 lines)  │
 │  ├── Useless wrapper removal                                    │
-│  └── Regex-powered content search                               │
+│  ├── Regex-powered content search with context                  │
+│  └── Diff tracking (compare snapshots over time)                │
 ├─────────────────────────────────────────────────────────────────┤
 │  CODE EXECUTION                                                 │
 │  ├── browser_execute tool (run Playwright code in VM sandbox)  │
 │  ├── Sandboxed require (safe module allowlist)                  │
 │  ├── Scoped file system (cwd, /tmp only)                       │
 │  └── Console log capture and forwarding                         │
+├─────────────────────────────────────────────────────────────────┤
+│  PERSISTENT LOGGING                                             │
+│  ├── Per-page browser console capture (5000 log limit)         │
+│  ├── Logs persist across executions and reconnections          │
+│  ├── Search logs with regex and context                         │
+│  └── Auto-clear on navigation                                   │
+├─────────────────────────────────────────────────────────────────┤
+│  NETWORK & PAGE UTILITIES                                       │
+│  ├── Network capture with analytics filtering                   │
+│  ├── Smart page load (filters stuck/analytics requests)        │
+│  ├── Clean HTML extraction with search/diff                     │
+│  └── Selector string generation from elements                   │
 ├─────────────────────────────────────────────────────────────────┤
 │  ADVANCED DEVTOOLS                                              │
 │  ├── Debugger class (breakpoints, step, inspect variables)     │
@@ -320,22 +413,29 @@ npm run build
 ```
 even-better-playwright-mcp/
 ├── bin/
-│   └── cli.ts              # CLI entry point with arg parsing
+│   └── cli.ts                  # CLI entry point with arg parsing
 ├── src/
-│   ├── index.ts            # MCP server setup
-│   ├── browser.ts          # Browser/context management
-│   ├── vm-context.ts       # VM sandbox setup
+│   ├── index.ts                # MCP server setup
+│   ├── browser.ts              # Browser/context management
+│   ├── vm-context.ts           # VM sandbox setup
 │   ├── tools/
-│   │   ├── snapshot.ts     # Snapshot tool (compressed)
-│   │   ├── execute.ts      # Execute tool (main)
-│   │   ├── screenshot.ts   # Screenshot tool (with labels)
-│   │   └── search.ts       # Search tool
+│   │   ├── snapshot.ts         # Snapshot tool (compressed + search + diff)
+│   │   ├── execute.ts          # Execute tool (main)
+│   │   ├── screenshot.ts       # Screenshot tool (with labels)
+│   │   ├── search.ts           # Search tool
+│   │   └── network.ts          # Network capture tool
 │   ├── utils/
 │   │   ├── smart-outline.ts    # DOM compression
 │   │   ├── list-detector.ts    # Pattern detection
 │   │   ├── dom-simhash.ts      # SimHash implementation
 │   │   ├── scoped-fs.ts        # Sandboxed file system
-│   │   └── search.ts           # Regex search
+│   │   ├── search.ts           # Regex search
+│   │   ├── browser-logs.ts     # Persistent console logging
+│   │   ├── clean-html.ts       # HTML cleaning with search/diff
+│   │   ├── locator-string.ts   # Selector generation
+│   │   ├── wait-for-page-load.ts  # Smart page load detection
+│   │   ├── network-capture.ts  # Network request capture
+│   │   └── console-capture.ts  # Console log capture
 │   ├── devtools/
 │   │   ├── cdp-session.ts      # CDP connection
 │   │   ├── debugger.ts         # Debugger class
