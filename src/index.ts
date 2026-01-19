@@ -9,7 +9,12 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
+  ListResourcesRequestSchema,
+  ReadResourceRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 
 import { snapshotTool, snapshotSchema, createSnapshotHandler } from './tools/snapshot.js';
@@ -45,6 +50,7 @@ export function createServerInstance(config?: BrowserConfig): PlaywrightMcpServe
     {
       capabilities: {
         tools: {},
+        resources: {},
       },
     }
   );
@@ -128,6 +134,68 @@ export function createServerInstance(config?: BrowserConfig): PlaywrightMcpServe
         isError: true,
       };
     }
+  });
+
+  // Resource definitions for API documentation
+  const resources = [
+    {
+      uri: 'playwriter://resources/debugger-api',
+      name: 'Debugger API',
+      description: 'CDP Debugger API - set breakpoints, step through code, inspect variables',
+      mimeType: 'text/markdown',
+    },
+    {
+      uri: 'playwriter://resources/editor-api',
+      name: 'Editor API',
+      description: 'CDP Editor API - view and live-edit page scripts and CSS at runtime',
+      mimeType: 'text/markdown',
+    },
+    {
+      uri: 'playwriter://resources/styles-api',
+      name: 'Styles API',
+      description: 'CDP Styles API - inspect CSS styles applied to elements',
+      mimeType: 'text/markdown',
+    },
+  ];
+
+  // Helper to load resource content
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = dirname(__filename);
+  const loadResource = (name: string): string => {
+    const resourcePath = join(__dirname, 'resources', `${name}.md`);
+    return readFileSync(resourcePath, 'utf-8');
+  };
+
+  // List available resources
+  server.setRequestHandler(ListResourcesRequestSchema, async () => {
+    return { resources };
+  });
+
+  // Read resource content
+  server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
+    const { uri } = request.params;
+
+    const resourceMap: Record<string, string> = {
+      'playwriter://resources/debugger-api': 'debugger-api',
+      'playwriter://resources/editor-api': 'editor-api',
+      'playwriter://resources/styles-api': 'styles-api',
+    };
+
+    const resourceName = resourceMap[uri];
+    if (!resourceName) {
+      throw new Error(`Unknown resource: ${uri}`);
+    }
+
+    const content = loadResource(resourceName);
+    return {
+      contents: [
+        {
+          uri,
+          mimeType: 'text/markdown',
+          text: content,
+        },
+      ],
+    };
   });
 
   return {

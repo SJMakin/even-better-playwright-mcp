@@ -11,6 +11,7 @@ export interface GetCleanHTMLOptions {
   search?: string | RegExp;
   showDiffSinceLastCall?: boolean;
   maxContentLen?: number;
+  includeStyles?: boolean;
 }
 
 // Store last HTML snapshots per locator/page for diffing
@@ -36,13 +37,23 @@ function getSnapshotKey(locator: Locator | Page): string {
 /**
  * Basic HTML cleaning - removes scripts, styles, and cleans up whitespace
  */
-function cleanHtml(html: string, maxContentLen: number): string {
-  // Remove script and style tags with their content
+function cleanHtml(html: string, maxContentLen: number, includeStyles: boolean): string {
+  // Remove script tags with their content
   let cleaned = html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
-  cleaned = cleaned.replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '');
+
+  // Remove style tags unless includeStyles is true
+  if (!includeStyles) {
+    cleaned = cleaned.replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '');
+  }
 
   // Remove comments
   cleaned = cleaned.replace(/<!--[\s\S]*?-->/g, '');
+
+  // Remove style and class attributes unless includeStyles is true
+  if (!includeStyles) {
+    cleaned = cleaned.replace(/\s+(style|class)="[^"]*"/gi, '');
+    cleaned = cleaned.replace(/\s+(style|class)='[^']*'/gi, '');
+  }
 
   // Truncate very long text content (but keep tags intact)
   if (maxContentLen > 0) {
@@ -69,6 +80,7 @@ export async function getCleanHTML(options: GetCleanHTMLOptions): Promise<string
     search,
     showDiffSinceLastCall = false,
     maxContentLen = 500,
+    includeStyles = false,
   } = options;
 
   // Get raw HTML
@@ -84,7 +96,7 @@ export async function getCleanHTML(options: GetCleanHTMLOptions): Promise<string
   }
 
   // Clean the HTML
-  const cleanedHtml = cleanHtml(rawHtml, maxContentLen);
+  const cleanedHtml = cleanHtml(rawHtml, maxContentLen, includeStyles);
 
   // Sanitize to remove unpaired surrogates that break JSON encoding
   let htmlStr = cleanedHtml.toWellFormed?.() ?? cleanedHtml;
