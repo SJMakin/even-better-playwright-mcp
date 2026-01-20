@@ -26,3 +26,8 @@ coverage/
 # Temp files
 *.tmp
 *.temp
+
+# Reference repos (cloned for reference only)
+better-playwright-mcp/
+playwright-mcp/
+playwriter/
